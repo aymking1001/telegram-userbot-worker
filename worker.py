@@ -13,12 +13,18 @@ client = TelegramClient(
     os.environ["TELEGRAM_API_HASH"]
 )
 
-file_id = os.environ["FILE_ID"]
+BOT_USERNAME = "@aymking3000_bot"
+MESSAGE_ID = int(os.environ["MESSAGE_ID"])
 
 async def main():
     await client.start()
 
-    path = await client.download_media(file_id)
+    message = await client.get_messages(BOT_USERNAME, ids=MESSAGE_ID)
+
+    if not message:
+        raise Exception("Message not found in bot")
+
+    path = await message.download_media()
 
     print(f"Downloaded: {path}")
 
