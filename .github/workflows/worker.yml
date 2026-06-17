@@ -3,6 +3,9 @@ name: Telegram UserBot Worker
 on:
   workflow_dispatch:
     inputs:
+      chat_id:
+        required: true
+        type: string
       message_id:
         required: true
         type: string
