@@ -1,4 +1,3 @@
-
 import os
 import base64
 from telethon import TelegramClient
@@ -16,9 +15,18 @@ client = TelegramClient(
     os.environ["TELEGRAM_API_HASH"]
 )
 
+chat_id = int(os.environ["CHAT_ID"])
+message_id = int(os.environ["MESSAGE_ID"])
+
 async def main():
-    me = await client.get_me()
-    print(f"Logged in as: {me.id} | {me.first_name}")
+    message = await client.get_messages(chat_id, ids=message_id)
+
+    if not message:
+        raise Exception("Message not found")
+
+    path = await message.download_media()
+
+    print(f"Downloaded: {path}")
 
 with client:
     client.loop.run_until_complete(main())
