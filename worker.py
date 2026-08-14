@@ -1,21 +1,40 @@
 import os
 from telethon import TelegramClient
+from telethon.sessions import StringSession
+
+
+# ==================================================
+# معلومات Telegram
+# ==================================================
 
 API_ID = int(os.environ["TELEGRAM_API_ID"])
 API_HASH = os.environ["TELEGRAM_API_HASH"]
 SESSION = os.environ["TELEGRAM_SESSION"]
 
-# الرسالة المحولة الموجودة في قناة/محادثة الاستقبال
+
+# ==================================================
+# الرسالة المحولة الموجودة في محادثة الاستقبال
+# ==================================================
+
 CHAT_ID = int(os.environ["CHAT_ID"])
 MESSAGE_ID = int(os.environ["MESSAGE_ID"])
 
-# معلومات الرسالة الأصلية التي أرسلها n8n
+
+# ==================================================
+# معلومات الرسالة الأصلية
+# ==================================================
+
 SOURCE_CHAT_ID = int(os.environ["SOURCE_CHAT_ID"])
 SOURCE_MESSAGE_ID = int(os.environ["SOURCE_MESSAGE_ID"])
 SOURCE_USERNAME = os.environ.get("SOURCE_USERNAME", "").strip()
 
+
+# ==================================================
+# إنشاء Telegram Client باستخدام StringSession
+# ==================================================
+
 client = TelegramClient(
-    "worker",
+    StringSession(SESSION),
     API_ID,
     API_HASH
 )
@@ -39,21 +58,29 @@ async def main():
     # --------------------------------------------------
 
     try:
+
+        print("🔎 البحث عن الرسالة المحولة...")
+
         forwarded_message = await client.get_messages(
             CHAT_ID,
             ids=MESSAGE_ID
         )
 
     except Exception as e:
+
         print("❌ فشل الحصول على الرسالة المحولة.")
         print(f"Error: {e}")
+
         return
 
     if not forwarded_message:
+
         print("❌ لم يتم العثور على الرسالة المحولة.")
+
         return
 
     print(f"✅ تم العثور على الرسالة المحولة: {forwarded_message.id}")
+
 
     # --------------------------------------------------
     # الوصول إلى القناة الأصلية
@@ -61,10 +88,15 @@ async def main():
 
     source_entity = None
 
+
+    # --------------------------------------------------
     # أولاً نحاول باستخدام username
+    # --------------------------------------------------
+
     if SOURCE_USERNAME:
 
         try:
+
             print("🔎 محاولة الوصول إلى القناة بواسطة username...")
 
             source_entity = await client.get_entity(
@@ -78,6 +110,7 @@ async def main():
             print("⚠️ فشل الوصول بواسطة username.")
             print(f"Error: {e}")
 
+
     # --------------------------------------------------
     # إذا فشل username نحاول باستخدام ID
     # --------------------------------------------------
@@ -85,10 +118,9 @@ async def main():
     if source_entity is None:
 
         try:
+
             print("🔎 محاولة الوصول إلى القناة بواسطة chat_id...")
 
-            # الحصول على dialogs حتى يقوم Telethon
-            # بتحميل معلومات القنوات التي يعرفها الحساب
             async for dialog in client.iter_dialogs():
 
                 if dialog.id == SOURCE_CHAT_ID:
@@ -96,12 +128,14 @@ async def main():
                     source_entity = dialog.entity
 
                     print("✅ تم العثور على القناة بواسطة chat_id.")
+
                     break
 
         except Exception as e:
 
             print("⚠️ فشل البحث بواسطة chat_id.")
             print(f"Error: {e}")
+
 
     # --------------------------------------------------
     # التأكد من أننا وجدنا القناة
@@ -118,11 +152,13 @@ async def main():
 
         return
 
+
     print("===================================")
     print("✅ تم العثور على القناة الأصلية")
     print("===================================")
 
     print(f"Entity: {source_entity}")
+
 
     # --------------------------------------------------
     # الحصول على الرسالة الأصلية
@@ -144,6 +180,7 @@ async def main():
 
         return
 
+
     # --------------------------------------------------
     # التأكد من وجود الرسالة
     # --------------------------------------------------
@@ -151,7 +188,9 @@ async def main():
     if not original_message:
 
         print("❌ الرسالة الأصلية غير موجودة.")
+
         return
+
 
     # --------------------------------------------------
     # عرض معلومات الرسالة الأصلية
@@ -165,6 +204,7 @@ async def main():
     print(f"Original date : {original_message.date}")
     print(f"Original text : {original_message.text}")
 
+
     # --------------------------------------------------
     # فحص الوسائط
     # --------------------------------------------------
@@ -177,10 +217,16 @@ async def main():
 
         print("Original message has no media.")
 
+
     print("===================================")
     print("✅ انتهى العمل بنجاح")
     print("===================================")
 
 
+# ==================================================
+# تشغيل Worker
+# ==================================================
+
 with client:
+
     client.loop.run_until_complete(main())
