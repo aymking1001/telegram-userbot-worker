@@ -33,4 +33,5 @@ jobs:
           TELEGRAM_SESSION: ${{ secrets.TELEGRAM_SESSION }}
           CHAT_ID: ${{ inputs.chat_id }}
           MESSAGE_ID: ${{ inputs.message_id }}
+          USERNAME: ${{ inputs.username }}
         run: python worker.py
