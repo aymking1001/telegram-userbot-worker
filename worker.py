@@ -5,97 +5,180 @@ API_ID = int(os.environ["TELEGRAM_API_ID"])
 API_HASH = os.environ["TELEGRAM_API_HASH"]
 SESSION = os.environ["TELEGRAM_SESSION"]
 
+# الرسالة المحولة الموجودة في قناة/محادثة الاستقبال
 CHAT_ID = int(os.environ["CHAT_ID"])
 MESSAGE_ID = int(os.environ["MESSAGE_ID"])
 
-client = TelegramClient("worker", API_ID, API_HASH)
+# معلومات الرسالة الأصلية التي أرسلها n8n
+SOURCE_CHAT_ID = int(os.environ["SOURCE_CHAT_ID"])
+SOURCE_MESSAGE_ID = int(os.environ["SOURCE_MESSAGE_ID"])
+SOURCE_USERNAME = os.environ.get("SOURCE_USERNAME", "").strip()
+
+client = TelegramClient(
+    "worker",
+    API_ID,
+    API_HASH
+)
 
 
 async def main():
-    # الحصول على الرسالة المحوّلة الموجودة في CHAT_ID
-    forwarded_message = await client.get_messages(
-        CHAT_ID,
-        ids=MESSAGE_ID
-    )
+
+    print("===================================")
+    print("🚀 بدء Worker")
+    print("===================================")
+
+    print(f"Forwarded chat ID : {CHAT_ID}")
+    print(f"Forwarded message : {MESSAGE_ID}")
+
+    print(f"Source chat ID    : {SOURCE_CHAT_ID}")
+    print(f"Source message ID : {SOURCE_MESSAGE_ID}")
+    print(f"Source username   : {SOURCE_USERNAME}")
+
+    # --------------------------------------------------
+    # الحصول على الرسالة المحولة
+    # --------------------------------------------------
+
+    try:
+        forwarded_message = await client.get_messages(
+            CHAT_ID,
+            ids=MESSAGE_ID
+        )
+
+    except Exception as e:
+        print("❌ فشل الحصول على الرسالة المحولة.")
+        print(f"Error: {e}")
+        return
 
     if not forwarded_message:
-        print("❌ لم يتم العثور على الرسالة.")
+        print("❌ لم يتم العثور على الرسالة المحولة.")
         return
 
-    print(f"✅ تم العثور على الرسالة: {forwarded_message.id}")
-
-    # التأكد أنها رسالة محوّلة
-    if not forwarded_message.fwd_from:
-        print("❌ هذه الرسالة ليست رسالة محوّلة.")
-        return
-
-    fwd = forwarded_message.fwd_from
-
-    print("✅ الرسالة محوّلة من مصدر.")
+    print(f"✅ تم العثور على الرسالة المحولة: {forwarded_message.id}")
 
     # --------------------------------------------------
-    # محاولة معرفة القناة الأصلية
+    # الوصول إلى القناة الأصلية
     # --------------------------------------------------
 
-    if not fwd.from_id:
-        print("❌ Telegram لم يعطِ مصدر الرسالة.")
-        print("قد تكون معلومات المصدر مخفية.")
+    source_entity = None
+
+    # أولاً نحاول باستخدام username
+    if SOURCE_USERNAME:
+
+        try:
+            print("🔎 محاولة الوصول إلى القناة بواسطة username...")
+
+            source_entity = await client.get_entity(
+                SOURCE_USERNAME
+            )
+
+            print("✅ تم العثور على القناة بواسطة username.")
+
+        except Exception as e:
+
+            print("⚠️ فشل الوصول بواسطة username.")
+            print(f"Error: {e}")
+
+    # --------------------------------------------------
+    # إذا فشل username نحاول باستخدام ID
+    # --------------------------------------------------
+
+    if source_entity is None:
+
+        try:
+            print("🔎 محاولة الوصول إلى القناة بواسطة chat_id...")
+
+            # الحصول على dialogs حتى يقوم Telethon
+            # بتحميل معلومات القنوات التي يعرفها الحساب
+            async for dialog in client.iter_dialogs():
+
+                if dialog.id == SOURCE_CHAT_ID:
+
+                    source_entity = dialog.entity
+
+                    print("✅ تم العثور على القناة بواسطة chat_id.")
+                    break
+
+        except Exception as e:
+
+            print("⚠️ فشل البحث بواسطة chat_id.")
+            print(f"Error: {e}")
+
+    # --------------------------------------------------
+    # التأكد من أننا وجدنا القناة
+    # --------------------------------------------------
+
+    if source_entity is None:
+
+        print("===================================")
+        print("❌ لم يتم العثور على القناة الأصلية.")
+        print("===================================")
+
+        print("SOURCE_CHAT_ID:", SOURCE_CHAT_ID)
+        print("SOURCE_USERNAME:", SOURCE_USERNAME)
+
         return
 
-    print(f"Source ID: {fwd.from_id}")
+    print("===================================")
+    print("✅ تم العثور على القناة الأصلية")
+    print("===================================")
 
-    # الحصول على Entity الخاص بالمصدر
+    print(f"Entity: {source_entity}")
+
+    # --------------------------------------------------
+    # الحصول على الرسالة الأصلية
+    # --------------------------------------------------
+
     try:
-        source_entity = await client.get_entity(fwd.from_id)
-    except Exception as e:
-        print("❌ لم أستطع الوصول إلى القناة/الحساب الأصلي.")
-        print(f"Error: {e}")
-        return
 
-    print(f"✅ تم العثور على المصدر: {source_entity}")
+        print("🔎 البحث عن الرسالة الأصلية...")
 
-    # --------------------------------------------------
-    # الحصول على ID الرسالة الأصلية
-    # --------------------------------------------------
-
-    original_message_id = fwd.channel_post
-
-    if not original_message_id:
-        print("❌ لا يوجد channel_post في معلومات التحويل.")
-        return
-
-    print(f"Original message ID: {original_message_id}")
-
-    # --------------------------------------------------
-    # جلب الرسالة الأصلية
-    # --------------------------------------------------
-
-    try:
         original_message = await client.get_messages(
             source_entity,
-            ids=original_message_id
+            ids=SOURCE_MESSAGE_ID
         )
+
     except Exception as e:
+
         print("❌ فشل الحصول على الرسالة الأصلية.")
         print(f"Error: {e}")
+
         return
 
+    # --------------------------------------------------
+    # التأكد من وجود الرسالة
+    # --------------------------------------------------
+
     if not original_message:
-        print("❌ الرسالة الأصلية غير موجودة أو لا يمكن الوصول إليها.")
+
+        print("❌ الرسالة الأصلية غير موجودة.")
         return
+
+    # --------------------------------------------------
+    # عرض معلومات الرسالة الأصلية
+    # --------------------------------------------------
 
     print("===================================")
     print("✅ تم العثور على الرسالة الأصلية")
     print("===================================")
 
-    print(f"Original ID: {original_message.id}")
-    print(f"Original date: {original_message.date}")
-    print(f"Original text: {original_message.text}")
+    print(f"Original ID   : {original_message.id}")
+    print(f"Original date : {original_message.date}")
+    print(f"Original text : {original_message.text}")
 
-    # معلومات إضافية
+    # --------------------------------------------------
+    # فحص الوسائط
+    # --------------------------------------------------
+
     if original_message.media:
+
         print("Original message contains media.")
 
+    else:
+
+        print("Original message has no media.")
+
+    print("===================================")
+    print("✅ انتهى العمل بنجاح")
     print("===================================")
 
 
