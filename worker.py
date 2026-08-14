@@ -1,72 +1,102 @@
 import os
-import base64
 from telethon import TelegramClient
 
-session_data = base64.b64decode(os.environ["TELEGRAM_SESSION"])
+API_ID = int(os.environ["TELEGRAM_API_ID"])
+API_HASH = os.environ["TELEGRAM_API_HASH"]
+SESSION = os.environ["TELEGRAM_SESSION"]
 
-with open("github_session.session", "wb") as f:
-    f.write(session_data)
+CHAT_ID = int(os.environ["CHAT_ID"])
+MESSAGE_ID = int(os.environ["MESSAGE_ID"])
 
-client = TelegramClient(
-    "github_session",
-    int(os.environ["TELEGRAM_API_ID"]),
-    os.environ["TELEGRAM_API_HASH"]
-)
-
-FORWARD_CHAT_ID = int(os.environ["CHAT_ID"])
-FORWARD_MESSAGE_ID = int(os.environ["MESSAGE_ID"])
+client = TelegramClient("worker", API_ID, API_HASH)
 
 
 async def main():
-    await client.start()
-
-    # 1. الحصول على الرسالة المحولة
+    # الحصول على الرسالة المحوّلة الموجودة في CHAT_ID
     forwarded_message = await client.get_messages(
-        FORWARD_CHAT_ID,
-        ids=FORWARD_MESSAGE_ID
+        CHAT_ID,
+        ids=MESSAGE_ID
     )
 
     if not forwarded_message:
-        raise Exception("Forwarded message not found")
+        print("❌ لم يتم العثور على الرسالة.")
+        return
 
-    print("Forwarded message found")
+    print(f"✅ تم العثور على الرسالة: {forwarded_message.id}")
 
-    # 2. التأكد أنها رسالة محولة
+    # التأكد أنها رسالة محوّلة
     if not forwarded_message.fwd_from:
-        raise Exception("This message is not forwarded")
+        print("❌ هذه الرسالة ليست رسالة محوّلة.")
+        return
 
-    forward = forwarded_message.fwd_from
+    fwd = forwarded_message.fwd_from
 
-    # 3. الحصول على معلومات الرسالة الأصلية
-    original_message_id = forward.channel_post
+    print("✅ الرسالة محوّلة من مصدر.")
+
+    # --------------------------------------------------
+    # محاولة معرفة القناة الأصلية
+    # --------------------------------------------------
+
+    if not fwd.from_id:
+        print("❌ Telegram لم يعطِ مصدر الرسالة.")
+        print("قد تكون معلومات المصدر مخفية.")
+        return
+
+    print(f"Source ID: {fwd.from_id}")
+
+    # الحصول على Entity الخاص بالمصدر
+    try:
+        source_entity = await client.get_entity(fwd.from_id)
+    except Exception as e:
+        print("❌ لم أستطع الوصول إلى القناة/الحساب الأصلي.")
+        print(f"Error: {e}")
+        return
+
+    print(f"✅ تم العثور على المصدر: {source_entity}")
+
+    # --------------------------------------------------
+    # الحصول على ID الرسالة الأصلية
+    # --------------------------------------------------
+
+    original_message_id = fwd.channel_post
 
     if not original_message_id:
-        raise Exception("Original message ID not found")
+        print("❌ لا يوجد channel_post في معلومات التحويل.")
+        return
 
-    # 4. الحصول على القناة الأصلية
-    original_channel = await client.get_entity(forward.from_id)
-
-    print(f"Original channel: {original_channel.id}")
     print(f"Original message ID: {original_message_id}")
 
-    # 5. الحصول على الرسالة الأصلية
-    original_message = await client.get_messages(
-        original_channel,
-        ids=original_message_id
-    )
+    # --------------------------------------------------
+    # جلب الرسالة الأصلية
+    # --------------------------------------------------
+
+    try:
+        original_message = await client.get_messages(
+            source_entity,
+            ids=original_message_id
+        )
+    except Exception as e:
+        print("❌ فشل الحصول على الرسالة الأصلية.")
+        print(f"Error: {e}")
+        return
 
     if not original_message:
-        raise Exception("Original message not found")
+        print("❌ الرسالة الأصلية غير موجودة أو لا يمكن الوصول إليها.")
+        return
 
-    print("Original message found")
+    print("===================================")
+    print("✅ تم العثور على الرسالة الأصلية")
+    print("===================================")
 
-    # 6. تحميل الملف إن وجد
-    path = await original_message.download_media()
+    print(f"Original ID: {original_message.id}")
+    print(f"Original date: {original_message.date}")
+    print(f"Original text: {original_message.text}")
 
-    if path:
-        print(f"Downloaded: {path}")
-    else:
-        print("Original message has no downloadable media")
+    # معلومات إضافية
+    if original_message.media:
+        print("Original message contains media.")
+
+    print("===================================")
 
 
 with client:
