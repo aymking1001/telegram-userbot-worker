@@ -21,7 +21,6 @@ async def main():
         API_HASH
     )
 
-    # الاتصال باستخدام Session الموجودة في GitHub Secrets
     await client.connect()
 
     if not await client.is_user_authorized():
@@ -31,11 +30,10 @@ async def main():
 
     print("Telegram connected successfully.")
 
-    # الحصول على الرسالة الأصلية
+    # جلب الرسالة الأصلية
     print(
-        f"Getting source message: "
-        f"{SOURCE_MESSAGE_ID} "
-        f"from {SOURCE_CHAT_ID}"
+        f"Searching for source message "
+        f"{SOURCE_MESSAGE_ID} in chat {SOURCE_CHAT_ID}..."
     )
 
     message = await client.get_messages(
@@ -46,8 +44,8 @@ async def main():
     if not message:
         raise RuntimeError(
             f"لم يتم العثور على الرسالة "
-            f"{SOURCE_MESSAGE_ID} "
-            f"في المحادثة {SOURCE_CHAT_ID}"
+            f"{SOURCE_MESSAGE_ID} في المحادثة "
+            f"{SOURCE_CHAT_ID}"
         )
 
     print(f"Source message found: {message.id}")
@@ -57,18 +55,19 @@ async def main():
 
     await asyncio.sleep(180)
 
-    # إعادة إرسال الرسالة إلى CHAT_ID
-    print(f"Forwarding message to {CHAT_ID}...")
-
-    sent_message = await client.forward_messages(
-        entity=CHAT_ID,
-        messages=message
-    )
-
+    # إعادة توجيه الرسالة
     print(
-        f"Message forwarded successfully. "
-        f"New message ID: {sent_message.id}"
+        f"Forwarding message {message.id} "
+        f"to {CHAT_ID}..."
     )
+
+    await client.forward_messages(
+        entity=CHAT_ID,
+        messages=message,
+        from_peer=SOURCE_CHAT_ID
+    )
+
+    print("Message forwarded successfully.")
 
     await client.disconnect()
 
