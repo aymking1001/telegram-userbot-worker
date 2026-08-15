@@ -2,40 +2,29 @@ import os
 import asyncio
 
 from telethon import TelegramClient
-from telethon.sessions import StringSession
 from telethon.errors import RPCError
 
 
-# ==================================================
-# Telegram Configuration
-# ==================================================
+# ============================================================
+# ENV
+# ============================================================
 
 API_ID = int(os.environ["TELEGRAM_API_ID"])
 API_HASH = os.environ["TELEGRAM_API_HASH"]
 SESSION = os.environ["TELEGRAM_SESSION"]
 
-
-# ==================================================
-# Forwarded Message
-# ==================================================
-
 CHAT_ID = int(os.environ["CHAT_ID"])
 MESSAGE_ID = int(os.environ["MESSAGE_ID"])
-
-
-# ==================================================
-# Source Message
-# ==================================================
 
 SOURCE_CHAT_ID = int(os.environ["SOURCE_CHAT_ID"])
 SOURCE_MESSAGE_ID = int(os.environ["SOURCE_MESSAGE_ID"])
 
-SOURCE_USERNAME = os.environ.get("SOURCE_USERNAME", "")
+SOURCE_USERNAME = os.environ.get("SOURCE_USERNAME", "").strip()
 
 
-# ==================================================
-# Main
-# ==================================================
+# ============================================================
+# MAIN
+# ============================================================
 
 async def main():
 
@@ -49,169 +38,318 @@ async def main():
     print(f"Source message ID    : {SOURCE_MESSAGE_ID}")
     print(f"Source username      : {SOURCE_USERNAME}")
 
-    # ==================================================
-    # إنشاء Telegram Client باستخدام StringSession
-    # ==================================================
+    # ========================================================
+    # Telegram Client
+    # ========================================================
 
     client = TelegramClient(
-        StringSession(SESSION),
+        "worker_session",
         API_ID,
         API_HASH
     )
 
-    # الاتصال بدون طلب رقم الهاتف
-    await client.connect()
-
-    # ==================================================
-    # التأكد من أن Session صالحة
-    # ==================================================
-
-    if not await client.is_user_authorized():
-        print("===================================")
-        print("❌ خطأ في Telegram Session")
-        print("===================================")
-        print("TELEGRAM_SESSION غير صالحة أو انتهت صلاحيتها.")
-        print("لن يتم طلب رقم الهاتف لأن GitHub Actions غير تفاعلي.")
-
-        await client.disconnect()
-        raise RuntimeError("Invalid Telegram session")
-
-    # ==================================================
-    # معلومات الحساب
-    # ==================================================
-
-    me = await client.get_me()
-
-    print("===================================")
-    print("👤 Telegram Account")
-    print("===================================")
-
-    print(f"ID       : {me.id}")
-    print(f"Username : @{me.username}")
-    print(f"Phone    : {me.phone}")
-
-    # ==================================================
-    # البحث عن الرسالة المحولة
-    # ==================================================
-
-    print("===================================")
-    print("🔎 البحث عن الرسالة المحولة")
-    print("===================================")
-
     try:
 
-        forwarded_message = await client.get_messages(
-            CHAT_ID,
-            ids=MESSAGE_ID
+        # ----------------------------------------------------
+        # تسجيل الدخول
+        # ----------------------------------------------------
+
+        print("===================================")
+        print("🔐 تسجيل الدخول")
+        print("===================================")
+
+        # مهم جدًا:
+        # لا نريد Telethon أن يحاول طلب رقم الهاتف
+        # داخل GitHub Actions.
+        #
+        # SESSION يجب أن تكون Session String صالحة.
+
+        await client.start(
+            bot_token=None
         )
 
-        if forwarded_message is None:
+        # ----------------------------------------------------
+        # معلومات الحساب
+        # ----------------------------------------------------
 
-            print("❌ الرسالة المحولة غير موجودة.")
-            print(f"CHAT_ID    : {CHAT_ID}")
-            print(f"MESSAGE_ID : {MESSAGE_ID}")
+        me = await client.get_me()
 
-        else:
+        print("===================================")
+        print("👤 Telegram Account")
+        print("===================================")
 
-            print("✅ تم العثور على الرسالة المحولة.")
-            print(f"Message ID : {forwarded_message.id}")
+        print(f"ID       : {me.id}")
+        print(f"Username : @{me.username}")
+        print(f"Phone    : {me.phone}")
 
-            # ------------------------------------------
-            # Forward information
-            # ------------------------------------------
+        # ====================================================
+        # البحث عن الرسالة المحولة
+        # ====================================================
 
-            if forwarded_message.fwd_from:
+        print("===================================")
+        print("🔎 البحث عن الرسالة المحولة")
+        print("===================================")
 
-                print("✅ الرسالة تحتوي على معلومات Forward.")
+        try:
 
-                print(
-                    "From channel ID : "
-                    f"{getattr(forwarded_message.fwd_from, 'from_id', None)}"
-                )
+            forwarded_message = await client.get_messages(
+                CHAT_ID,
+                ids=MESSAGE_ID
+            )
+
+            if forwarded_message is None:
+
+                print("❌ الرسالة المحولة غير موجودة.")
+                print(f"CHAT_ID    : {CHAT_ID}")
+                print(f"MESSAGE_ID : {MESSAGE_ID}")
 
             else:
 
-                print("⚠️ الرسالة ليست Forward.")
+                print("✅ تم العثور على الرسالة المحولة.")
+                print(f"Message ID : {forwarded_message.id}")
 
-    except RPCError as e:
+                if forwarded_message.fwd_from:
 
-        print("❌ خطأ أثناء البحث عن الرسالة المحولة:")
-        print(e)
+                    print("✅ الرسالة تحتوي على معلومات Forward.")
 
-    except Exception as e:
+                    print(
+                        "From ID : "
+                        f"{getattr(forwarded_message.fwd_from, 'from_id', None)}"
+                    )
 
-        print("❌ خطأ غير متوقع أثناء البحث عن الرسالة المحولة:")
-        print(e)
+                else:
 
-    # ==================================================
-    # البحث عن الرسالة الأصلية
-    # ==================================================
+                    print("⚠️ الرسالة ليست Forward.")
 
-    print("===================================")
-    print("🔎 البحث عن الرسالة الأصلية")
-    print("===================================")
+        except RPCError as e:
 
-    try:
+            print("❌ خطأ Telegram أثناء البحث عن الرسالة المحولة:")
+            print(type(e).__name__)
+            print(e)
 
-        source_message = await client.get_messages(
-            SOURCE_CHAT_ID,
-            ids=SOURCE_MESSAGE_ID
-        )
+        except Exception as e:
 
-        if source_message is None:
+            print("❌ خطأ غير متوقع أثناء البحث عن الرسالة المحولة:")
+            print(type(e).__name__)
+            print(e)
 
-            print("❌ الرسالة الأصلية غير موجودة.")
-            print(f"SOURCE_CHAT_ID    : {SOURCE_CHAT_ID}")
-            print(f"SOURCE_MESSAGE_ID : {SOURCE_MESSAGE_ID}")
+        # ====================================================
+        # الحصول على Source Entity
+        # ====================================================
+
+        print("===================================")
+        print("🔎 الحصول على Source Entity")
+        print("===================================")
+
+        source_entity = None
+
+        # ----------------------------------------------------
+        # الطريقة الأولى: username
+        # ----------------------------------------------------
+
+        if SOURCE_USERNAME:
+
+            try:
+
+                username = SOURCE_USERNAME
+
+                if username.startswith("@"):
+                    username = username[1:]
+
+                print(
+                    f"🔍 محاولة الوصول إلى القناة بواسطة username: "
+                    f"@{username}"
+                )
+
+                source_entity = await client.get_entity(
+                    username
+                )
+
+                print("✅ تم الحصول على Source Entity.")
+
+                print(
+                    f"Entity ID       : "
+                    f"{getattr(source_entity, 'id', None)}"
+                )
+
+                print(
+                    f"Entity username : "
+                    f"@{getattr(source_entity, 'username', None)}"
+                )
+
+                print(
+                    f"Entity title    : "
+                    f"{getattr(source_entity, 'title', None)}"
+                )
+
+            except RPCError as e:
+
+                print("❌ Telegram رفض الوصول إلى Source Entity:")
+                print(type(e).__name__)
+                print(e)
+
+            except Exception as e:
+
+                print("❌ فشل الحصول على Source Entity بواسطة username:")
+                print(type(e).__name__)
+                print(e)
+
+        # ----------------------------------------------------
+        # إذا فشل username نحاول SOURCE_CHAT_ID
+        # ----------------------------------------------------
+
+        if source_entity is None:
+
+            print("===================================")
+            print("🔄 محاولة الوصول بواسطة SOURCE_CHAT_ID")
+            print("===================================")
+
+            try:
+
+                source_entity = await client.get_entity(
+                    SOURCE_CHAT_ID
+                )
+
+                print("✅ تم الحصول على Source Entity بواسطة ID.")
+
+            except RPCError as e:
+
+                print("❌ لا يمكن الوصول إلى Source Chat بواسطة ID:")
+                print(type(e).__name__)
+                print(e)
+
+            except Exception as e:
+
+                print("❌ خطأ غير متوقع:")
+                print(type(e).__name__)
+                print(e)
+
+        # ====================================================
+        # البحث عن الرسالة الأصلية
+        # ====================================================
+
+        print("===================================")
+        print("🔎 البحث عن الرسالة الأصلية")
+        print("===================================")
+
+        if source_entity is None:
+
+            print("❌ لا يمكن البحث عن الرسالة الأصلية.")
+            print("السبب: Source Entity غير متوفر.")
 
         else:
 
-            print("✅ تم العثور على الرسالة الأصلية.")
+            try:
 
-            print(f"Message ID : {source_message.id}")
-            print(f"Chat ID    : {SOURCE_CHAT_ID}")
+                print(
+                    f"Source Entity ID : "
+                    f"{getattr(source_entity, 'id', None)}"
+                )
 
-            # ------------------------------------------
-            # Text
-            # ------------------------------------------
+                print(
+                    f"Source Message ID : "
+                    f"{SOURCE_MESSAGE_ID}"
+                )
 
-            if source_message.message:
+                source_message = await client.get_messages(
+                    source_entity,
+                    ids=SOURCE_MESSAGE_ID
+                )
 
-                print("Text:")
-                print(source_message.message[:500])
+                if source_message is None:
 
-            # ------------------------------------------
-            # Media
-            # ------------------------------------------
+                    print("❌ الرسالة الأصلية غير موجودة.")
 
-            if source_message.media:
+                    print(
+                        f"SOURCE_MESSAGE_ID : "
+                        f"{SOURCE_MESSAGE_ID}"
+                    )
 
-                print("📎 الرسالة تحتوي على Media.")
+                else:
 
-    except RPCError as e:
+                    print("✅ تم العثور على الرسالة الأصلية.")
 
-        print("❌ خطأ أثناء البحث عن الرسالة الأصلية:")
-        print(e)
+                    print(
+                        f"Message ID : "
+                        f"{source_message.id}"
+                    )
 
-    except Exception as e:
+                    print(
+                        f"Chat ID    : "
+                        f"{getattr(source_entity, 'id', None)}"
+                    )
 
-        print("❌ خطأ غير متوقع أثناء البحث عن الرسالة الأصلية:")
-        print(e)
+                    # ----------------------------------------
+                    # النص
+                    # ----------------------------------------
 
-    # ==================================================
-    # Disconnect
-    # ==================================================
+                    if source_message.message:
 
-    await client.disconnect()
+                        print("===================================")
+                        print("📝 النص")
+                        print("===================================")
 
-    print("===================================")
-    print("🏁 انتهاء Worker")
-    print("===================================")
+                        print(
+                            source_message.message[:500]
+                        )
+
+                    else:
+
+                        print("⚠️ الرسالة لا تحتوي على نص.")
+
+                    # ----------------------------------------
+                    # Media
+                    # ----------------------------------------
+
+                    if source_message.media:
+
+                        print("📎 الرسالة تحتوي على Media.")
+
+                        print(
+                            f"Media type : "
+                            f"{type(source_message.media).__name__}"
+                        )
+
+                    else:
+
+                        print("⚠️ الرسالة لا تحتوي على Media.")
+
+                    # ----------------------------------------
+                    # Forward info
+                    # ----------------------------------------
+
+                    if source_message.fwd_from:
+
+                        print("🔁 الرسالة الأصلية نفسها تحتوي على Forward.")
+
+            except RPCError as e:
+
+                print("❌ خطأ Telegram أثناء البحث عن الرسالة الأصلية:")
+                print(type(e).__name__)
+                print(e)
+
+            except Exception as e:
+
+                print("❌ خطأ غير متوقع أثناء البحث عن الرسالة الأصلية:")
+                print(type(e).__name__)
+                print(e)
+
+    finally:
+
+        # ====================================================
+        # Disconnect
+        # ====================================================
+
+        await client.disconnect()
+
+        print("===================================")
+        print("🏁 انتهاء Worker")
+        print("===================================")
 
 
-# ==================================================
-# Run
-# ==================================================
+# ============================================================
+# START
+# ============================================================
 
 if __name__ == "__main__":
     asyncio.run(main())
