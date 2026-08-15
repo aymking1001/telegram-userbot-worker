@@ -4,35 +4,17 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession
 
 
-# ============================================================
-# Telegram
-# ============================================================
-
 API_ID = int(os.environ["TELEGRAM_API_ID"])
 API_HASH = os.environ["TELEGRAM_API_HASH"]
 SESSION = os.environ["TELEGRAM_SESSION"]
 
-
-# ============================================================
-# الرسالة المحولة
-# ============================================================
-
 CHAT_ID = int(os.environ["CHAT_ID"])
 MESSAGE_ID = int(os.environ["MESSAGE_ID"])
-
-
-# ============================================================
-# الرسالة الأصلية
-# ============================================================
 
 SOURCE_CHAT_ID = int(os.environ["SOURCE_CHAT_ID"])
 SOURCE_MESSAGE_ID = int(os.environ["SOURCE_MESSAGE_ID"])
 SOURCE_USERNAME = os.environ.get("SOURCE_USERNAME", "").strip()
 
-
-# ============================================================
-# Telegram Client
-# ============================================================
 
 client = TelegramClient(
     StringSession(SESSION),
@@ -41,447 +23,170 @@ client = TelegramClient(
 )
 
 
-# ============================================================
-# أدوات ID
-# ============================================================
-
 def normalize_channel_id(value):
-    """
-    Telethon:
-        Channel entity ID = 1839480260
-
-    Bot API style:
-        Channel chat ID = -1001839480260
-
-    نحول الاثنين إلى صيغة واحدة للمقارنة.
-    """
-
     value = int(value)
 
-    if value > 0:
-        return -1000000000000 - value
+    if value < 0:
+        value = abs(value)
+
+        if str(value).startswith("100"):
+            value = int(str(value)[3:])
 
     return value
 
 
-def get_entity_id(entity):
-    return getattr(entity, "id", None)
+def get_entity_normalized_id(entity):
+    entity_id = getattr(entity, "id", None)
 
+    if entity_id is None:
+        return None
 
-# ============================================================
-# معلومات Media
-# ============================================================
+    return normalize_channel_id(entity_id)
 
-def print_media_info(message, label):
-
-    print("-----------------------------------")
-    print(f"📦 Media: {label}")
-    print("-----------------------------------")
-
-    if not message:
-        print("❌ لا توجد رسالة.")
-        return
-
-    if not message.media:
-        print("⚠️ لا توجد Media.")
-        return
-
-    print("✅ الرسالة تحتوي على Media.")
-
-    print(
-        f"Media class : "
-        f"{type(message.media).__name__}"
-    )
-
-    # --------------------------------------------------------
-    # Document
-    # --------------------------------------------------------
-
-    if message.document:
-
-        document = message.document
-
-        print("Media type : Document")
-
-        print(
-            f"Document ID : "
-            f"{document.id}"
-        )
-
-        print(
-            f"Size        : "
-            f"{document.size}"
-        )
-
-        print(
-            f"MIME type   : "
-            f"{document.mime_type}"
-        )
-
-        print(
-            f"Attributes  : "
-            f"{document.attributes}"
-        )
-
-    # --------------------------------------------------------
-    # Photo
-    # --------------------------------------------------------
-
-    elif message.photo:
-
-        print("Media type : Photo")
-
-        print(
-            f"Photo ID : "
-            f"{message.photo.id}"
-        )
-
-    else:
-
-        print(
-            f"Media type: "
-            f"{type(message.media).__name__}"
-        )
-
-
-# ============================================================
-# Main
-# ============================================================
 
 async def main():
 
-    print()
     print("===================================")
     print("🚀 بدء Worker")
     print("===================================")
 
-    print(
-        f"Forwarded CHAT_ID     : {CHAT_ID}"
-    )
-
-    print(
-        f"Forwarded MESSAGE_ID  : {MESSAGE_ID}"
-    )
-
-    print(
-        f"Source CHAT_ID        : {SOURCE_CHAT_ID}"
-    )
-
-    print(
-        f"Source MESSAGE_ID     : {SOURCE_MESSAGE_ID}"
-    )
-
-    print(
-        f"Source USERNAME       : {SOURCE_USERNAME}"
-    )
-
-
-    # ========================================================
-    # Account
-    # ========================================================
-
-    print()
-    print("===================================")
-    print("👤 Telegram Account")
-    print("===================================")
+    print(f"Forwarded chat ID    : {CHAT_ID}")
+    print(f"Forwarded message ID : {MESSAGE_ID}")
+    print(f"Source chat ID       : {SOURCE_CHAT_ID}")
+    print(f"Source message ID    : {SOURCE_MESSAGE_ID}")
+    print(f"Source username      : {SOURCE_USERNAME}")
 
     try:
-
         me = await client.get_me()
 
-        print(
-            f"ID       : {me.id}"
-        )
+        print("===================================")
+        print("👤 Telegram Account")
+        print("===================================")
 
-        print(
-            f"Username : "
-            f"@{me.username}"
-            if me.username
-            else
-            "Username : None"
-        )
+        print(f"ID       : {me.id}")
 
-        print(
-            f"Phone    : {me.phone}"
-            if me.phone
-            else
-            "Phone    : None"
-        )
+        if me.username:
+            print(f"Username : @{me.username}")
+        else:
+            print("Username : None")
+
+        if me.phone:
+            print(f"Phone    : {me.phone}")
+        else:
+            print("Phone    : None")
 
     except Exception as e:
-
-        print(
-            "❌ فشل الحصول على معلومات الحساب."
-        )
-
-        print(
-            f"Error: {type(e).__name__}: {e}"
-        )
-
+        print("❌ فشل الحصول على معلومات الحساب.")
+        print(f"Error: {type(e).__name__}: {e}")
         return
 
-
-    # ========================================================
-    # الحصول على محادثة الرسالة المحولة
-    # ========================================================
-
-    print()
     print("===================================")
-    print("🔎 فحص Forwarded Chat")
+    print("🔎 فحص محادثة الرسالة المحولة")
     print("===================================")
 
     try:
+        chat_entity = await client.get_entity(CHAT_ID)
 
-        forwarded_chat = await client.get_entity(
-            CHAT_ID
-        )
+        print("✅ تم العثور على المحادثة.")
 
-        print(
-            "✅ تم العثور على محادثة الرسالة المحولة."
-        )
+        print(f"Entity ID   : {getattr(chat_entity, 'id', None)}")
+        print(f"Chat type   : {type(chat_entity).__name__}")
 
-        actual_chat_id = get_entity_id(
-            forwarded_chat
-        )
+        if hasattr(chat_entity, "title"):
+            print(f"Title       : {getattr(chat_entity, 'title', None)}")
 
-        print(
-            f"Requested ID : {CHAT_ID}"
-        )
-
-        print(
-            f"Entity ID    : {actual_chat_id}"
-        )
-
-        print(
-            f"Entity type  : "
-            f"{type(forwarded_chat).__name__}"
-        )
-
-        if hasattr(forwarded_chat, "title"):
-
-            print(
-                f"Title        : "
-                f"{forwarded_chat.title}"
-            )
-
-        if hasattr(forwarded_chat, "username"):
-
-            print(
-                f"Username     : "
-                f"{forwarded_chat.username}"
-            )
+        if hasattr(chat_entity, "username"):
+            print(f"Username    : {getattr(chat_entity, 'username', None)}")
 
     except Exception as e:
-
-        print(
-            "❌ لا يمكن الوصول إلى CHAT_ID."
-        )
-
-        print(
-            f"Error: {type(e).__name__}: {e}"
-        )
-
+        print("❌ لا يمكن الوصول إلى CHAT_ID.")
+        print(f"Error: {type(e).__name__}: {e}")
         return
 
-
-    # ========================================================
-    # الحصول على الرسالة المحولة
-    # ========================================================
-
-    print()
     print("===================================")
-    print("🔎 البحث عن Forwarded Message")
+    print("🔎 البحث عن الرسالة المحولة")
     print("===================================")
 
     try:
-
         forwarded_message = await client.get_messages(
-            forwarded_chat,
+            chat_entity,
             ids=MESSAGE_ID
         )
 
     except Exception as e:
-
-        print(
-            "❌ فشل الحصول على الرسالة المحولة."
-        )
-
-        print(
-            f"Error: {type(e).__name__}: {e}"
-        )
-
+        print("❌ فشل الحصول على الرسالة المحولة.")
+        print(f"Error: {type(e).__name__}: {e}")
         return
-
 
     if not forwarded_message:
-
-        print(
-            "❌ الرسالة المحولة غير موجودة."
-        )
-
-        print(
-            f"CHAT_ID    : {CHAT_ID}"
-        )
-
-        print(
-            f"MESSAGE_ID : {MESSAGE_ID}"
-        )
-
+        print("❌ الرسالة المحولة غير موجودة.")
+        print(f"CHAT_ID    : {CHAT_ID}")
+        print(f"MESSAGE_ID : {MESSAGE_ID}")
         return
 
+    print("✅ تم العثور على الرسالة المحولة.")
 
-    # ========================================================
-    # معلومات Forwarded Message
-    # ========================================================
-
-    print(
-        "✅ تم العثور على الرسالة المحولة."
-    )
-
-    print(
-        f"Message ID : "
-        f"{forwarded_message.id}"
-    )
-
-    print(
-        f"Date       : "
-        f"{forwarded_message.date}"
-    )
-
-    print(
-        f"Text       : "
-        f"{forwarded_message.text}"
-    )
-
+    print(f"Message ID : {forwarded_message.id}")
+    print(f"Date       : {forwarded_message.date}")
+    print(f"Text       : {forwarded_message.text}")
     print(
         f"Media      : "
         f"{'نعم' if forwarded_message.media else 'لا'}"
     )
 
+    if forwarded_message.id != MESSAGE_ID:
+        print("❌ Message ID mismatch.")
+        print(f"Expected : {MESSAGE_ID}")
+        print(f"Actual   : {forwarded_message.id}")
+        return
 
-    # ========================================================
-    # التحقق الحقيقي من Forward
-    # ========================================================
+    print("✅ Forwarded Message ID صحيح.")
 
-    print()
     print("===================================")
-    print("🔎 التحقق من Forward Header")
+    print("🔎 التحقق من معلومات الـ Forward")
     print("===================================")
 
-    fwd = forwarded_message.fwd_from
+    fwd = getattr(
+        forwarded_message,
+        "fwd_from",
+        None
+    )
 
-    if fwd is None:
+    if fwd:
+
+        print("✅ الرسالة تحتوي على معلومات Forward.")
 
         print(
-            "❌ هذه الرسالة لا تحتوي على Forward Header."
+            f"Forward from ID : "
+            f"{getattr(fwd, 'from_id', None)}"
         )
 
         print(
-            "أي أن MESSAGE_ID لا يمثل Forward "
-            "حقيقيًا حسب بيانات Telegram."
+            f"Channel post ID : "
+            f"{getattr(fwd, 'channel_post', None)}"
+        )
+
+        print(
+            f"Forward date    : "
+            f"{getattr(fwd, 'date', None)}"
         )
 
     else:
 
         print(
-            "✅ توجد معلومات Forward."
+            "⚠️ الرسالة لا تحتوي على fwd_from."
         )
 
         print(
-            f"Forward header : {fwd}"
+            "سيتم الاعتماد على SOURCE_USERNAME "
+            "و SOURCE_CHAT_ID."
         )
 
-        # ----------------------------------------------------
-        # channel_post
-        # ----------------------------------------------------
-
-        channel_post = getattr(
-            fwd,
-            "channel_post",
-            None
-        )
-
-        print(
-            f"Forward channel_post : "
-            f"{channel_post}"
-        )
-
-        # ----------------------------------------------------
-        # from_id
-        # ----------------------------------------------------
-
-        from_id = getattr(
-            fwd,
-            "from_id",
-            None
-        )
-
-        print(
-            f"Forward from_id      : "
-            f"{from_id}"
-        )
-
-        # ----------------------------------------------------
-        # date
-        # ----------------------------------------------------
-
-        print(
-            f"Original forward date: "
-            f"{getattr(fwd, 'date', None)}"
-        )
-
-        # ----------------------------------------------------
-        # مقارنة MESSAGE_ID
-        # ----------------------------------------------------
-
-        if channel_post is not None:
-
-            if int(channel_post) == SOURCE_MESSAGE_ID:
-
-                print(
-                    "✅ Forward يشير إلى "
-                    "SOURCE_MESSAGE_ID الصحيح."
-                )
-
-            else:
-
-                print(
-                    "❌ Forward يشير إلى رسالة أخرى."
-                )
-
-                print(
-                    f"Expected SOURCE_MESSAGE_ID : "
-                    f"{SOURCE_MESSAGE_ID}"
-                )
-
-                print(
-                    f"Actual channel_post         : "
-                    f"{channel_post}"
-                )
-
-        else:
-
-            print(
-                "⚠️ Forward Header لا يحتوي على "
-                "channel_post."
-            )
-
-
-    # ========================================================
-    # العثور على القناة الأصلية
-    # ========================================================
-
-    print()
     print("===================================")
-    print("🔎 البحث عن Source Channel")
+    print("🔎 البحث عن القناة الأصلية")
     print("===================================")
 
     source_entity = None
-
-
-    # ========================================================
-    # بواسطة username
-    # ========================================================
 
     if SOURCE_USERNAME:
 
@@ -490,104 +195,102 @@ async def main():
         try:
 
             print(
-                f"🔎 محاولة الوصول إلى "
-                f"@{username}"
+                f"🔎 محاولة الوصول بواسطة username: @{username}"
             )
 
             source_entity = await client.get_entity(
                 username
             )
 
-            print(
-                "✅ تم العثور على القناة بواسطة username."
-            )
-
-            actual_source_id = get_entity_id(
-                source_entity
-            )
+            print("✅ تم العثور على القناة بواسطة username.")
 
             print(
-                f"Entity ID        : "
-                f"{actual_source_id}"
+                f"Entity ID : "
+                f"{getattr(source_entity, 'id', None)}"
             )
 
             print(
-                f"Normalized ID    : "
-                f"{normalize_channel_id(actual_source_id)}"
-            )
-
-            print(
-                f"Expected ID      : "
-                f"{SOURCE_CHAT_ID}"
-            )
-
-            print(
-                f"Expected normalized: "
-                f"{normalize_channel_id(SOURCE_CHAT_ID)}"
-            )
-
-            print(
-                f"Title             : "
+                f"Title     : "
                 f"{getattr(source_entity, 'title', None)}"
             )
 
             print(
-                f"Username          : "
+                f"Username  : "
                 f"{getattr(source_entity, 'username', None)}"
             )
 
         except Exception as e:
 
+            print("⚠️ فشل الوصول بواسطة username.")
             print(
-                "⚠️ فشل الوصول إلى القناة بواسطة username."
+                f"Error: {type(e).__name__}: {e}"
+            )
+
+    if source_entity is None:
+
+        try:
+
+            print(
+                "🔎 محاولة الوصول بواسطة SOURCE_CHAT_ID..."
+            )
+
+            source_entity = await client.get_entity(
+                SOURCE_CHAT_ID
+            )
+
+            print(
+                "✅ تم العثور على القناة بواسطة SOURCE_CHAT_ID."
+            )
+
+        except Exception as e:
+
+            print(
+                "⚠️ فشل الوصول بواسطة SOURCE_CHAT_ID."
             )
 
             print(
                 f"Error: {type(e).__name__}: {e}"
             )
 
-
-    # ========================================================
-    # إذا لم ينجح username
-    # ========================================================
-
     if source_entity is None:
 
-        print()
         print(
-            "🔎 البحث عن القناة داخل dialogs..."
+            "🔎 البحث عن القناة في dialogs..."
         )
 
         try:
 
-            expected_normalized = normalize_channel_id(
+            expected_id = normalize_channel_id(
                 SOURCE_CHAT_ID
             )
 
             async for dialog in client.iter_dialogs():
 
-                dialog_id = int(dialog.id)
+                dialog_id = getattr(
+                    dialog,
+                    "id",
+                    None
+                )
 
-                if (
-                    normalize_channel_id(dialog_id)
-                    ==
-                    expected_normalized
-                ):
+                if dialog_id is None:
+                    continue
+
+                if normalize_channel_id(
+                    dialog_id
+                ) == expected_id:
 
                     source_entity = dialog.entity
 
                     print(
-                        "✅ تم العثور على القناة داخل dialogs."
+                        "✅ تم العثور على القناة في dialogs."
                     )
 
                     print(
-                        f"Dialog ID : "
-                        f"{dialog.id}"
+                        f"Dialog ID : {dialog.id}"
                     )
 
                     print(
-                        f"Name      : "
-                        f"{dialog.name}"
+                        f"Name      : {dialog.name}"
                     )
 
                     break
@@ -602,94 +305,70 @@ async def main():
                 f"Error: {type(e).__name__}: {e}"
             )
 
-
-    # ========================================================
-    # لم نجد القناة
-    # ========================================================
-
     if source_entity is None:
 
-        print()
         print("===================================")
-        print("❌ لم يتم العثور على Source Channel")
+        print("❌ لم يتم العثور على القناة الأصلية")
         print("===================================")
 
         print(
-            f"SOURCE_CHAT_ID : "
-            f"{SOURCE_CHAT_ID}"
+            f"SOURCE_CHAT_ID  : {SOURCE_CHAT_ID}"
         )
 
         print(
-            f"SOURCE_USERNAME: "
-            f"{SOURCE_USERNAME}"
+            f"SOURCE_USERNAME : {SOURCE_USERNAME}"
         )
 
         return
 
-
-    # ========================================================
-    # التحقق من Source ID
-    # ========================================================
-
-    print()
     print("===================================")
     print("🔎 التحقق من Source Chat ID")
     print("===================================")
 
-    actual_source_id = get_entity_id(
-        source_entity
+    actual_id = getattr(
+        source_entity,
+        "id",
+        None
     )
 
     expected_normalized = normalize_channel_id(
         SOURCE_CHAT_ID
     )
 
-    actual_normalized = normalize_channel_id(
-        actual_source_id
+    actual_normalized = get_entity_normalized_id(
+        source_entity
     )
 
     print(
-        f"Expected raw ID      : "
-        f"{SOURCE_CHAT_ID}"
+        f"Expected raw ID     : {SOURCE_CHAT_ID}"
     )
 
     print(
-        f"Actual entity ID     : "
-        f"{actual_source_id}"
+        f"Actual entity ID    : {actual_id}"
     )
 
     print(
-        f"Expected normalized  : "
-        f"{expected_normalized}"
+        f"Expected normalized : {expected_normalized}"
     )
 
     print(
-        f"Actual normalized    : "
-        f"{actual_normalized}"
+        f"Actual normalized   : {actual_normalized}"
     )
 
-    if expected_normalized == actual_normalized:
+    if actual_normalized != expected_normalized:
 
         print(
-            "✅ Source Chat ID مطابق."
-        )
-
-    else:
-
-        print(
-            "❌ Source Chat ID غير مطابق."
+            "❌ SOURCE_CHAT_ID لا يطابق القناة."
         )
 
         return
 
+    print(
+        "✅ SOURCE_CHAT_ID صحيح."
+    )
 
-    # ========================================================
-    # الحصول على الرسالة الأصلية
-    # ========================================================
-
-    print()
     print("===================================")
-    print("🔎 البحث عن Original Message")
+    print("🔎 البحث عن الرسالة الأصلية")
     print("===================================")
 
     try:
@@ -711,64 +390,42 @@ async def main():
 
         return
 
-
-    # ========================================================
-    # التحقق من الرسالة الأصلية
-    # ========================================================
-
     if not original_message:
 
+        print("===================================")
+        print("❌ الرسالة الأصلية غير موجودة")
+        print("===================================")
+
         print(
-            "❌ الرسالة الأصلية غير موجودة."
+            f"Source Chat ID    : {SOURCE_CHAT_ID}"
         )
 
         print(
-            f"SOURCE_CHAT_ID    : "
-            f"{SOURCE_CHAT_ID}"
-        )
-
-        print(
-            f"SOURCE_MESSAGE_ID : "
-            f"{SOURCE_MESSAGE_ID}"
+            f"Source Message ID : {SOURCE_MESSAGE_ID}"
         )
 
         return
 
+    print("===================================")
+    print("✅ تم العثور على الرسالة الأصلية")
+    print("===================================")
 
     print(
-        "✅ تم العثور على Original Message."
+        f"Original ID   : {original_message.id}"
     )
 
     print(
-        f"Original ID   : "
-        f"{original_message.id}"
+        f"Original date : {original_message.date}"
     )
 
     print(
-        f"Original date : "
-        f"{original_message.date}"
+        f"Original text : {original_message.text}"
     )
 
-    print(
-        f"Original text : "
-        f"{original_message.text}"
-    )
-
-
-    # ========================================================
-    # التأكد من ID
-    # ========================================================
-
-    if original_message.id == SOURCE_MESSAGE_ID:
+    if original_message.id != SOURCE_MESSAGE_ID:
 
         print(
-            "✅ Original Message ID صحيح."
-        )
-
-    else:
-
-        print(
-            "❌ Original Message ID غير صحيح."
+            "❌ Original Message ID لا يطابق المطلوب."
         )
 
         print(
@@ -781,115 +438,75 @@ async def main():
 
         return
 
-
-    # ========================================================
-    # Media
-    # ========================================================
-
-    print_media_info(
-        original_message,
-        "ORIGINAL"
+    print(
+        "✅ Original Message ID صحيح."
     )
 
-    print_media_info(
-        forwarded_message,
-        "FORWARDED"
-    )
-
-
-    # ========================================================
-    # مقارنة Media
-    # ========================================================
-
-    print()
     print("===================================")
-    print("🔎 مقارنة Media")
+    print("📦 فحص Media")
     print("===================================")
 
     if original_message.media:
 
         print(
-            "✅ Original يحتوي على Media."
+            "✅ الرسالة الأصلية تحتوي على Media."
         )
+
+        print(
+            f"Media type : "
+            f"{type(original_message.media).__name__}"
+        )
+
+        document = getattr(
+            original_message,
+            "document",
+            None
+        )
+
+        if document:
+
+            print(
+                f"Document ID : "
+                f"{getattr(document, 'id', None)}"
+            )
+
+            print(
+                f"Size        : "
+                f"{getattr(document, 'size', None)} bytes"
+            )
+
+            print(
+                f"MIME type   : "
+                f"{getattr(document, 'mime_type', None)}"
+            )
 
     else:
 
         print(
-            "⚠️ Original لا يحتوي على Media."
+            "⚠️ الرسالة الأصلية لا تحتوي على Media."
         )
 
+    print("===================================")
+    print("🎯 التحقق النهائي")
+    print("===================================")
 
-    if forwarded_message.media:
+    print("✅ Forwarded chat")
+    print("✅ Forwarded message")
+    print("✅ Forwarded message ID")
+    print("✅ Source channel")
+    print("✅ Source channel ID")
+    print("✅ Original message")
+    print("✅ Original message ID")
 
-        print(
-            "✅ Forwarded يحتوي على Media."
-        )
-
+    if original_message.media:
+        print("✅ Original media")
     else:
-
-        print(
-            "⚠️ Forwarded لا يحتوي على Media."
-        )
-
-
-    # ========================================================
-    # النتيجة النهائية
-    # ========================================================
-
-    print()
-    print("===================================")
-    print("🏁 النتيجة النهائية")
-    print("===================================")
-
-    print(
-        "✅ Forwarded chat       : OK"
-    )
-
-    print(
-        "✅ Forwarded message    : OK"
-    )
-
-    if forwarded_message.fwd_from:
-
-        print(
-            "✅ Forward header       : موجود"
-        )
-
-    else:
-
-        print(
-            "⚠️ Forward header       : غير موجود"
-        )
-
-    print(
-        "✅ Source channel       : OK"
-    )
-
-    print(
-        "✅ Original message     : OK"
-    )
-
-    print(
-        f"Original Media          : "
-        f"{'YES' if original_message.media else 'NO'}"
-    )
-
-    print(
-        f"Forwarded Media         : "
-        f"{'YES' if forwarded_message.media else 'NO'}"
-    )
+        print("⚠️ Original media: غير موجود")
 
     print("===================================")
-    print("✅ انتهى Worker")
+    print("✅ انتهى العمل بنجاح")
     print("===================================")
 
-
-# ============================================================
-# تشغيل
-# ============================================================
 
 with client:
-
-    client.loop.run_until_complete(
-        main()
-    )
+    client.loop.run_until_complete(main())
