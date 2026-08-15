@@ -1,6 +1,7 @@
 import os
 import asyncio
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 
 
 API_ID = int(os.environ["TELEGRAM_API_ID"])
@@ -15,39 +16,47 @@ SOURCE_MESSAGE_ID = int(os.environ["SOURCE_MESSAGE_ID"])
 
 
 async def main():
+
     client = TelegramClient(
-        "worker_session",
+        StringSession(SESSION),
         API_ID,
         API_HASH
     )
 
-    # استخدام Session موجود مسبقًا
     await client.connect()
 
     if not await client.is_user_authorized():
-        raise RuntimeError(
-            "TELEGRAM_SESSION غير صالح أو منتهي. "
-            "يجب إنشاء Session صالح وإضافته إلى GitHub Secrets."
-        )
+        raise RuntimeError("TELEGRAM_SESSION غير صالحة.")
 
     print("Telegram connected successfully.")
 
-    # الحصول على الرسالة من المصدر
+    # البحث عن الرسالة المحوّلة
     message = await client.get_messages(
-        SOURCE_CHAT_ID,
-        ids=SOURCE_MESSAGE_ID
+        CHAT_ID,
+        ids=MESSAGE_ID
     )
 
     if not message:
-        raise RuntimeError("لم يتم العثور على الرسالة المصدر.")
+        raise RuntimeError(
+            f"لم يتم العثور على الرسالة {MESSAGE_ID} في المحادثة {CHAT_ID}"
+        )
 
-    print(f"Source message found: {message.id}")
+    print(f"Forwarded message found: {message.id}")
+
+    # عرض معلومات المصدر إن كانت الرسالة Forward
+    if message.forward:
+        print("This message is forwarded.")
+
+        if message.forward.chat:
+            print(f"Original chat: {message.forward.chat.id}")
+
+        print(f"Original message ID: {message.forward.channel_post}")
 
     # انتظار 3 دقائق
     print("Waiting 3 minutes before sending...")
     await asyncio.sleep(180)
 
-    # إعادة إرسال الرسالة
+    # إعادة إرسال الرسالة المحوّلة
     await client.forward_messages(
         entity=CHAT_ID,
         messages=message
