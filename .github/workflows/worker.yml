@@ -4,16 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       chat_id:
-        description: 'معرف المحادثة المراد الإرسال إليها'
-        required: false
+        description: 'معرف المحادثة'
+        required: true
         type: string
-        default: ''
 
       message_id:
-        description: 'رقم الرسالة الموجودة'
-        required: false
+        description: 'رقم الرسالة'
+        required: true
         type: string
-        default: ''
 
       source_chat_id:
         description: 'معرف المحادثة الأصلية'
@@ -46,57 +44,47 @@ on:
         required: true
         type: string
 
+      callback_url:
+        description: 'n8n callback URL'
+        required: true
+        type: string
+
+
 jobs:
   forward-voice:
+
     runs-on: ubuntu-latest
 
     steps:
 
-      # ============================================================
-      # Checkout
-      # ============================================================
-
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      # ============================================================
-      # Python
-      # ============================================================
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # ============================================================
-      # Dependencies
-      # ============================================================
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # ============================================================
-      # Run Worker
-      # ============================================================
-
       - name: Run Telegram UserBot
         env:
-          # Telegram
+
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
           TELEGRAM_SESSION: ${{ secrets.TELEGRAM_SESSION }}
 
-          # Telegram source
-          SOURCE_CHAT_ID: ${{ inputs.source_chat_id }}
-          SOURCE_MESSAGE_ID: ${{ inputs.source_message_id }}
-          SOURCE_USERNAME: ${{ inputs.source_username }}
+          SOURCE_CHAT_ID: ${{ github.event.inputs.source_chat_id }}
+          SOURCE_MESSAGE_ID: ${{ github.event.inputs.source_message_id }}
+          SOURCE_USERNAME: ${{ github.event.inputs.source_username }}
 
-          # Cloudinary
-          CLOUDINARY_CLOUD_NAME: ${{ inputs.cloudinary_cloud_name }}
-          CLOUDINARY_API_KEY: ${{ inputs.cloudinary_api_key }}
-          CLOUDINARY_API_SECRET: ${{ inputs.cloudinary_api_secret }}
+          CLOUDINARY_CLOUD_NAME: ${{ github.event.inputs.cloudinary_cloud_name }}
+          CLOUDINARY_API_KEY: ${{ github.event.inputs.cloudinary_api_key }}
+          CLOUDINARY_API_SECRET: ${{ github.event.inputs.cloudinary_api_secret }}
 
-        run: |
-          python worker.py
+          CALLBACK_URL: ${{ github.event.inputs.callback_url }}
+
+        run: python worker.py
