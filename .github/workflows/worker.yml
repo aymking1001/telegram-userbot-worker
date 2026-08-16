@@ -5,228 +5,621 @@ on:
     inputs:
       chat_id:
         description: 'معرف المحادثة المراد الإرسال إليها'
-        required: true
+        required: false
         type: string
+        default: ''
+
       message_id:
         description: 'رقم الرسالة الموجودة'
-        required: true
+        required: false
         type: string
+        default: ''
+
       source_chat_id:
         description: 'معرف المحادثة الأصلية'
         required: true
         type: string
+
       source_message_id:
         description: 'رقم الرسالة الأصلية'
         required: true
         type: string
+
       source_username:
         description: 'اسم المستخدم للمصدر'
         required: false
         type: string
         default: ''
 
+      cloudinary_cloud_name:
+        description: 'Cloudinary Cloud Name'
+        required: true
+        type: string
+
+      cloudinary_api_key:
+        description: 'Cloudinary API Key'
+        required: true
+        type: string
+
+      cloudinary_api_secret:
+        description: 'Cloudinary API Secret'
+        required: true
+        type: string
+
+
 jobs:
   forward-voice:
     runs-on: ubuntu-latest
-    
+
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
+
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+
       - name: Install dependencies
         run: |
-          pip install telethon
+          pip install telethon==1.43.2
+          pip install cloudinary
+
 
       - name: Create Python script
         run: |
           cat > worker.py << 'EOF'
+
           import asyncio
           import os
           import sys
-          from telethon import TelegramClient, events
+          import tempfile
+          import mimetypes
+          import traceback
+
+          import cloudinary
+          import cloudinary.uploader
+
+          from telethon import TelegramClient
           from telethon.sessions import StringSession
-          from telethon.errors import SessionPasswordNeededError, FloodWaitError
-          import time
+          from telethon.errors import SessionPasswordNeededError
+
 
           async def main():
-              try:
-                  # قراءة المتغيرات
-                  api_id = int(os.environ.get('TELEGRAM_API_ID', 0))
-                  api_hash = os.environ.get('TELEGRAM_API_HASH', '')
-                  session_string = os.environ.get('TELEGRAM_SESSION', '')
-                  
-                  chat_id = os.environ.get('CHAT_ID', '')
-                  message_id = int(os.environ.get('MESSAGE_ID', 0))
-                  source_chat_id = os.environ.get('SOURCE_CHAT_ID', '')
-                  source_message_id = int(os.environ.get('SOURCE_MESSAGE_ID', 0))
-                  source_username = os.environ.get('SOURCE_USERNAME', '')
 
-                  if not all([api_id, api_hash, session_string, chat_id, source_chat_id]):
+              try:
+
+                  # ============================================================
+                  # Telegram
+                  # ============================================================
+
+                  api_id = int(os.environ.get("TELEGRAM_API_ID", 0))
+                  api_hash = os.environ.get("TELEGRAM_API_HASH", "")
+                  session_string = os.environ.get("TELEGRAM_SESSION", "")
+
+                  source_chat_id = os.environ.get("SOURCE_CHAT_ID", "")
+                  source_message_id = int(
+                      os.environ.get("SOURCE_MESSAGE_ID", 0)
+                  )
+                  source_username = os.environ.get("SOURCE_USERNAME", "")
+
+
+                  # ============================================================
+                  # Cloudinary
+                  # ============================================================
+
+                  cloudinary_cloud_name = os.environ.get(
+                      "CLOUDINARY_CLOUD_NAME",
+                      ""
+                  )
+
+                  cloudinary_api_key = os.environ.get(
+                      "CLOUDINARY_API_KEY",
+                      ""
+                  )
+
+                  cloudinary_api_secret = os.environ.get(
+                      "CLOUDINARY_API_SECRET",
+                      ""
+                  )
+
+
+                  # ============================================================
+                  # التحقق من المتغيرات
+                  # ============================================================
+
+                  if not all([
+                      api_id,
+                      api_hash,
+                      session_string,
+                      source_chat_id,
+                      source_message_id,
+                      cloudinary_cloud_name,
+                      cloudinary_api_key,
+                      cloudinary_api_secret
+                  ]):
+
                       print("❌ خطأ: المتغيرات البيئية غير مكتملة")
-                      print(f"API_ID: {'موجود' if api_id else 'مفقود'}")
-                      print(f"API_HASH: {'موجود' if api_hash else 'مفقود'}")
-                      print(f"SESSION: {'موجود' if session_string else 'مفقود'}")
-                      print(f"CHAT_ID: {'موجود' if chat_id else 'مفقود'}")
-                      print(f"SOURCE_CHAT_ID: {'موجود' if source_chat_id else 'مفقود'}")
+
+                      print(
+                          f"API_ID: "
+                          f"{'موجود' if api_id else 'مفقود'}"
+                      )
+
+                      print(
+                          f"API_HASH: "
+                          f"{'موجود' if api_hash else 'مفقود'}"
+                      )
+
+                      print(
+                          f"SESSION: "
+                          f"{'موجود' if session_string else 'مفقود'}"
+                      )
+
+                      print(
+                          f"SOURCE_CHAT_ID: "
+                          f"{'موجود' if source_chat_id else 'مفقود'}"
+                      )
+
+                      print(
+                          f"SOURCE_MESSAGE_ID: "
+                          f"{'موجود' if source_message_id else 'مفقود'}"
+                      )
+
+                      print(
+                          f"CLOUDINARY_CLOUD_NAME: "
+                          f"{'موجود' if cloudinary_cloud_name else 'مفقود'}"
+                      )
+
+                      print(
+                          f"CLOUDINARY_API_KEY: "
+                          f"{'موجود' if cloudinary_api_key else 'مفقود'}"
+                      )
+
+                      print(
+                          f"CLOUDINARY_API_SECRET: "
+                          f"{'موجود' if cloudinary_api_secret else 'مفقود'}"
+                      )
+
                       sys.exit(1)
 
-                  print(f"📋 المعلومات:")
-                  print(f"  - Chat ID: {chat_id}")
-                  print(f"  - Message ID: {message_id}")
+
+                  print("📋 المعلومات:")
                   print(f"  - Source Chat ID: {source_chat_id}")
                   print(f"  - Source Message ID: {source_message_id}")
                   print(f"  - Source Username: {source_username}")
+                  print(
+                      f"  - Cloudinary Cloud Name: "
+                      f"{cloudinary_cloud_name}"
+                  )
 
-                  # إنشاء العميل
+
+                  # ============================================================
+                  # إعداد Cloudinary
+                  # ============================================================
+
+                  cloudinary.config(
+                      cloud_name=cloudinary_cloud_name,
+                      api_key=cloudinary_api_key,
+                      api_secret=cloudinary_api_secret,
+                      secure=True
+                  )
+
+                  print("☁️ تم إعداد Cloudinary بنجاح")
+
+
+                  # ============================================================
+                  # إنشاء Telegram Client
+                  # ============================================================
+
                   client = TelegramClient(
                       StringSession(session_string),
                       api_id,
                       api_hash
                   )
 
+
                   try:
+
+                      # ========================================================
                       # تسجيل الدخول
+                      # ========================================================
+
                       await client.start()
+
                       me = await client.get_me()
-                      print(f"✅ تم تسجيل الدخول بنجاح كـ: {me.first_name} (ID: {me.id})")
 
-                      # جلب المصدر والهدف
+                      print(
+                          f"✅ تسجيل الدخول إلى Telegram نجح "
+                          f"كـ: {me.first_name} (ID: {me.id})"
+                      )
+
+
+                      # ========================================================
+                      # جلب المصدر
+                      # ========================================================
+
                       try:
-                          # محاولة جلب المصدر
-                          if source_username:
-                              try:
-                                  source_entity = await client.get_entity(f"@{source_username}")
-                              except:
-                                  source_entity = await client.get_entity(int(source_chat_id))
-                          else:
-                              source_entity = await client.get_entity(int(source_chat_id))
-                              
-                          target_entity = await client.get_entity(int(chat_id))
-                          
-                          print(f"✅ تم جلب المصدر والهدف بنجاح")
 
-                          # جلب الرسالة الأصلية من المصدر
-                          try:
-                              source_messages = await client.get_messages(
-                                  source_entity,
-                                  ids=source_message_id
+                          if source_username:
+
+                              try:
+
+                                  source_entity = await client.get_entity(
+                                      f"@{source_username}"
+                                  )
+
+                              except Exception:
+
+                                  source_entity = await client.get_entity(
+                                      int(source_chat_id)
+                                  )
+
+                          else:
+
+                              source_entity = await client.get_entity(
+                                  int(source_chat_id)
                               )
-                              
-                              if not source_messages:
-                                  print(f"❌ لم يتم العثور على الرسالة رقم {source_message_id} في المصدر")
-                                  sys.exit(1)
-                              
-                              source_message = source_messages[0] if isinstance(source_messages, list) else source_messages
-                              
-                              if source_message is None:
-                                  print(f"❌ الرسالة غير موجودة")
-                                  sys.exit(1)
-                              
-                              print(f"✅ تم العثور على الرسالة الأصلية (ID: {source_message.id})")
-                              
-                              # التحقق من وجود صوت
-                              if source_message.voice or source_message.audio:
-                                  media_type = "صوتي" if source_message.voice else "ملف صوتي"
-                                  file_size = source_message.voice.size if source_message.voice else source_message.audio.size
-                                  print(f"🎵 تم العثور على {media_type}، حجمه: {file_size} بايت")
-                                  
-                                  # تجهيز النص المرفق
-                                  caption = source_message.text or ""
-                                  if caption:
-                                      print(f"📝 النص المرفق: {caption[:100]}...")
-                                  
-                                  # إرسال الملف
-                                  try:
-                                      # محاولة إرسال الملف
-                                      sent_message = await client.send_file(
-                                          target_entity,
-                                          file=source_message.media,
-                                          caption=caption,
-                                          reply_to=message_id if message_id else None
-                                      )
-                                      print(f"✅ تم إرسال الملف بنجاح (Message ID: {sent_message.id})")
-                                      
-                                  except FloodWaitError as e:
-                                      print(f"⏳ تم حظر الطلب، انتظر {e.seconds} ثانية")
-                                      time.sleep(e.seconds)
-                                      # محاولة مرة أخرى
-                                      sent_message = await client.send_file(
-                                          target_entity,
-                                          file=source_message.media,
-                                          caption=caption,
-                                          reply_to=message_id if message_id else None
-                                      )
-                                      print(f"✅ تم إرسال الملف بنجاح بعد الانتظار (Message ID: {sent_message.id})")
-                                      
-                              else:
-                                  print("❌ الرسالة لا تحتوي على ملف صوتي (voice/audio)")
-                                  print(f"نوع المحتوى: {type(source_message.media) if source_message.media else 'بدون ميديا'}")
-                                  sys.exit(1)
-                                  
-                          except ValueError as e:
-                              print(f"❌ خطأ في معرف المحادثة: {e}")
-                              print("تأكد من أن المعرفات صحيحة (أرقام سالبة للقنوات والمجموعات)")
-                              sys.exit(1)
-                          except Exception as e:
-                              print(f"❌ خطأ أثناء جلب الرسالة: {e}")
-                              import traceback
-                              traceback.print_exc()
-                              sys.exit(1)
+
+
+                          print("✅ تم الوصول إلى المصدر")
+
 
                       except ValueError as e:
-                          print(f"❌ خطأ في تحويل المعرف: {e}")
-                          print("تأكد من أن CHAT_ID و SOURCE_CHAT_ID أرقام صحيحة")
+
+                          print(f"❌ خطأ في معرف المصدر: {e}")
                           sys.exit(1)
+
                       except Exception as e:
-                          print(f"❌ خطأ أثناء جلب الكيانات: {e}")
-                          import traceback
+
+                          print(f"❌ خطأ أثناء الوصول إلى المصدر: {e}")
                           traceback.print_exc()
                           sys.exit(1)
 
+
+                      # ========================================================
+                      # جلب الرسالة الأصلية
+                      # ========================================================
+
+                      try:
+
+                          source_messages = await client.get_messages(
+                              source_entity,
+                              ids=source_message_id
+                          )
+
+
+                          if not source_messages:
+
+                              print(
+                                  f"❌ لم يتم العثور على الرسالة "
+                                  f"{source_message_id}"
+                              )
+
+                              sys.exit(1)
+
+
+                          if isinstance(source_messages, list):
+
+                              source_message = source_messages[0]
+
+                          else:
+
+                              source_message = source_messages
+
+
+                          if source_message is None:
+
+                              print("❌ الرسالة غير موجودة")
+                              sys.exit(1)
+
+
+                          print(
+                              f"✅ تم العثور على الرسالة "
+                              f"`{source_message.id}`"
+                          )
+
+
+                      except Exception as e:
+
+                          print(
+                              f"❌ خطأ أثناء جلب الرسالة: {e}"
+                          )
+
+                          traceback.print_exc()
+
+                          sys.exit(1)
+
+
+                      # ========================================================
+                      # التحقق من وجود ملف صوتي
+                      # ========================================================
+
+                      if not (
+                          source_message.voice
+                          or source_message.audio
+                      ):
+
+                          print(
+                              "❌ الرسالة لا تحتوي على ملف صوتي "
+                              "(voice/audio)"
+                          )
+
+                          print(
+                              f"نوع المحتوى: "
+                              f"{type(source_message.media) "
+                              if source_message.media "
+                              else 'بدون ميديا'}"
+                          )
+
+                          sys.exit(1)
+
+
+                      # ========================================================
+                      # معلومات الصوت
+                      # ========================================================
+
+                      if source_message.voice:
+
+                          media_type = "صوتية"
+
+                          file_size = source_message.voice.size or 0
+
+                          mime_type = (
+                              source_message.voice.mime_type
+                              or "audio/ogg"
+                          )
+
+                      else:
+
+                          media_type = "ملف صوتي"
+
+                          file_size = source_message.audio.size or 0
+
+                          mime_type = (
+                              source_message.audio.mime_type
+                              or "audio/mpeg"
+                          )
+
+
+                      print(
+                          f"🎵 تم العثور على {media_type}"
+                      )
+
+                      print(
+                          f"📦 الحجم: {file_size} بايت "
+                          f"(≈ {file_size / 1024 / 1024:.2f} MB)"
+                      )
+
+                      print(
+                          f"🎼 MIME Type: {mime_type}"
+                      )
+
+
+                      # ========================================================
+                      # إنشاء امتداد مناسب للملف المؤقت
+                      # ========================================================
+
+                      extension = mimetypes.guess_extension(
+                          mime_type
+                      )
+
+                      if not extension:
+
+                          if mime_type == "audio/ogg":
+                              extension = ".ogg"
+
+                          elif mime_type == "audio/mpeg":
+                              extension = ".mp3"
+
+                          else:
+                              extension = ".audio"
+
+
+                      temp_file = tempfile.NamedTemporaryFile(
+                          suffix=extension,
+                          delete=False
+                      )
+
+                      temp_path = temp_file.name
+
+                      temp_file.close()
+
+
+                      try:
+
+                          # ====================================================
+                          # تنزيل الصوت من Telegram
+                          # ====================================================
+
+                          print("⬇️ تنزيل الصوت من Telegram...")
+
+                          downloaded_file = await client.download_media(
+                              source_message,
+                              file=temp_path
+                          )
+
+
+                          if not downloaded_file:
+
+                              print(
+                                  "❌ فشل تنزيل الملف الصوتي"
+                              )
+
+                              sys.exit(1)
+
+
+                          print(
+                              f"✅ تم تنزيل الصوت مؤقتًا: "
+                              f"{downloaded_file}"
+                          )
+
+
+                          # ====================================================
+                          # رفع الصوت إلى Cloudinary
+                          # ====================================================
+
+                          print(
+                              "☁️ رفع الصوت إلى Cloudinary..."
+                          )
+
+
+                          upload_result = (
+                              await asyncio.to_thread(
+                                  cloudinary.uploader.upload,
+                                  temp_path,
+                                  resource_type="video"
+                              )
+                          )
+
+
+                          # ====================================================
+                          # نتيجة الرفع
+                          # ====================================================
+
+                          secure_url = upload_result.get(
+                              "secure_url"
+                          )
+
+                          public_id = upload_result.get(
+                              "public_id"
+                          )
+
+
+                          if not secure_url:
+
+                              print(
+                                  "❌ تم الرفع لكن لم يتم الحصول "
+                                  "على رابط Cloudinary"
+                              )
+
+                              print(upload_result)
+
+                              sys.exit(1)
+
+
+                          print(
+                              "✅ رفع الصوت إلى Cloudinary نجح."
+                          )
+
+                          print(
+                              f"☁️ Cloudinary Public ID: "
+                              f"{public_id}"
+                          )
+
+                          print(
+                              f"🔗 Cloudinary URL: "
+                              f"{secure_url}"
+                          )
+
+
+                      finally:
+
+                          # ====================================================
+                          # حذف الملف المؤقت
+                          # ====================================================
+
+                          try:
+
+                              if os.path.exists(temp_path):
+
+                                  os.remove(temp_path)
+
+                                  print(
+                                      "🗑️ تم حذف الملف المؤقت"
+                                  )
+
+                          except Exception as e:
+
+                              print(
+                                  f"⚠️ تعذر حذف الملف المؤقت: {e}"
+                              )
+
+
                   except SessionPasswordNeededError:
-                      print("❌ مطلوب كلمة مرور للجلسة - تحقق من TELEGRAM_SESSION")
+
+                      print(
+                          "❌ مطلوب كلمة مرور للجلسة - "
+                          "تحقق من TELEGRAM_SESSION"
+                      )
+
                       sys.exit(1)
+
+
                   except Exception as e:
-                      print(f"❌ خطأ في تسجيل الدخول: {e}")
-                      import traceback
+
+                      print(
+                          f"❌ خطأ في Telegram: {e}"
+                      )
+
                       traceback.print_exc()
+
                       sys.exit(1)
+
+
                   finally:
+
                       await client.disconnect()
-                      print("🔌 تم قطع الاتصال")
+
+                      print(
+                          "🔌 تم قطع الاتصال بـ Telegram"
+                      )
+
 
               except Exception as e:
-                  print(f"❌ خطأ غير متوقع: {e}")
-                  import traceback
+
+                  print(
+                      f"❌ خطأ غير متوقع: {e}"
+                  )
+
                   traceback.print_exc()
+
                   sys.exit(1)
+
 
           if __name__ == "__main__":
+
               try:
+
                   asyncio.run(main())
+
               except KeyboardInterrupt:
-                  print("🛑 تم إيقاف البرنامج بواسطة المستخدم")
+
+                  print(
+                      "🛑 تم إيقاف البرنامج بواسطة المستخدم"
+                  )
+
                   sys.exit(0)
+
               except Exception as e:
-                  print(f"❌ خطأ أثناء تشغيل البرنامج: {e}")
-                  import traceback
+
+                  print(
+                      f"❌ خطأ أثناء تشغيل البرنامج: {e}"
+                  )
+
                   traceback.print_exc()
+
                   sys.exit(1)
+
           EOF
+
 
       - name: Run Telegram UserBot
         env:
+
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-          TELEGRAM_API_HASH: ${{ secrets.	TELEGRAM_API_HASH }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
           TELEGRAM_SESSION: ${{ secrets.TELEGRAM_SESSION }}
-          CHAT_ID: ${{ github.event.inputs.chat_id }}
-          MESSAGE_ID: ${{ github.event.inputs.message_id }}
+
           SOURCE_CHAT_ID: ${{ github.event.inputs.source_chat_id }}
           SOURCE_MESSAGE_ID: ${{ github.event.inputs.source_message_id }}
           SOURCE_USERNAME: ${{ github.event.inputs.source_username }}
+
+          CLOUDINARY_CLOUD_NAME: ${{ github.event.inputs.cloudinary_cloud_name }}
+          CLOUDINARY_API_KEY: ${{ github.event.inputs.cloudinary_api_key }}
+          CLOUDINARY_API_SECRET: ${{ github.event.inputs.cloudinary_api_secret }}
+
         run: python worker.py
