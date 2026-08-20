@@ -29,6 +29,18 @@ on:
         type: string
         default: ''
 
+      title:
+        description: 'عنوان الصوت'
+        required: false
+        type: string
+        default: ''
+
+      duration:
+        description: 'مدة الصوت'
+        required: false
+        type: string
+        default: ''
+
       cloudinary_cloud_name:
         description: 'Cloudinary Cloud Name'
         required: true
@@ -77,9 +89,15 @@ jobs:
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
           TELEGRAM_SESSION: ${{ secrets.TELEGRAM_SESSION }}
 
+          CHAT_ID: ${{ github.event.inputs.chat_id }}
+          MESSAGE_ID: ${{ github.event.inputs.message_id }}
+
           SOURCE_CHAT_ID: ${{ github.event.inputs.source_chat_id }}
           SOURCE_MESSAGE_ID: ${{ github.event.inputs.source_message_id }}
           SOURCE_USERNAME: ${{ github.event.inputs.source_username }}
+
+          TITLE: ${{ github.event.inputs.title }}
+          DURATION: ${{ github.event.inputs.duration }}
 
           CLOUDINARY_CLOUD_NAME: ${{ github.event.inputs.cloudinary_cloud_name }}
           CLOUDINARY_API_KEY: ${{ github.event.inputs.cloudinary_api_key }}
