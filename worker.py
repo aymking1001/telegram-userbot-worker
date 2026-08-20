@@ -79,6 +79,20 @@ async def main():
             ""
         )
 
+        # ============================================================
+        # معلومات الرسالة القادمة من n8n
+        # ============================================================
+
+        chat_id = os.environ.get(
+            "CHAT_ID",
+            ""
+        )
+
+        message_id = os.environ.get(
+            "MESSAGE_ID",
+            ""
+        )
+
         source_chat_id = os.environ.get(
             "SOURCE_CHAT_ID",
             ""
@@ -93,6 +107,20 @@ async def main():
 
         source_username = os.environ.get(
             "SOURCE_USERNAME",
+            ""
+        )
+
+        # ============================================================
+        # المعلومات الجديدة القادمة من n8n
+        # ============================================================
+
+        title = os.environ.get(
+            "TITLE",
+            ""
+        )
+
+        duration = os.environ.get(
+            "DURATION",
             ""
         )
 
@@ -134,11 +162,17 @@ async def main():
             "TELEGRAM_API_ID": api_id,
             "TELEGRAM_API_HASH": api_hash,
             "TELEGRAM_SESSION": session_string,
+
+            "CHAT_ID": chat_id,
+            "MESSAGE_ID": message_id,
+
             "SOURCE_CHAT_ID": source_chat_id,
             "SOURCE_MESSAGE_ID": source_message_id,
+
             "CLOUDINARY_CLOUD_NAME": cloudinary_cloud_name,
             "CLOUDINARY_API_KEY": cloudinary_api_key,
             "CLOUDINARY_API_SECRET": cloudinary_api_secret,
+
             "CALLBACK_URL": callback_url,
         }
 
@@ -164,6 +198,16 @@ async def main():
         print("✅ جميع المتغيرات موجودة")
 
         print(
+            f"📌 Chat ID: "
+            f"{chat_id}"
+        )
+
+        print(
+            f"📌 Message ID: "
+            f"{message_id}"
+        )
+
+        print(
             f"📌 Source Chat ID: "
             f"{source_chat_id}"
         )
@@ -176,6 +220,16 @@ async def main():
         print(
             f"📌 Source Username: "
             f"{source_username}"
+        )
+
+        print(
+            f"📌 Title: "
+            f"{title}"
+        )
+
+        print(
+            f"📌 Duration: "
+            f"{duration}"
         )
 
         print(
@@ -290,8 +344,18 @@ async def main():
                     callback_url,
                     {
                         "success": False,
-                        "error": "MESSAGE_NOT_FOUND",
-                        "source_message_id": source_message_id
+
+                        "chat_id": chat_id,
+                        "message_id": message_id,
+
+                        "source_chat_id": source_chat_id,
+                        "source_message_id": source_message_id,
+                        "source_username": source_username,
+
+                        "title": title,
+                        "duration": duration,
+
+                        "error": "MESSAGE_NOT_FOUND"
                     }
                 )
 
@@ -319,8 +383,18 @@ async def main():
                     callback_url,
                     {
                         "success": False,
-                        "error": "NO_AUDIO",
-                        "source_message_id": source_message_id
+
+                        "chat_id": chat_id,
+                        "message_id": message_id,
+
+                        "source_chat_id": source_chat_id,
+                        "source_message_id": source_message_id,
+                        "source_username": source_username,
+
+                        "title": title,
+                        "duration": duration,
+
+                        "error": "NO_AUDIO"
                     }
                 )
 
@@ -384,12 +458,15 @@ async def main():
             if not extension:
 
                 if mime_type == "audio/mpeg":
+
                     extension = ".mp3"
 
                 elif mime_type == "audio/ogg":
+
                     extension = ".ogg"
 
                 else:
+
                     extension = ".audio"
 
             print(
@@ -433,8 +510,18 @@ async def main():
                     callback_url,
                     {
                         "success": False,
-                        "error": "TELEGRAM_DOWNLOAD_FAILED",
-                        "source_message_id": source_message_id
+
+                        "chat_id": chat_id,
+                        "message_id": message_id,
+
+                        "source_chat_id": source_chat_id,
+                        "source_message_id": source_message_id,
+                        "source_username": source_username,
+
+                        "title": title,
+                        "duration": duration,
+
+                        "error": "TELEGRAM_DOWNLOAD_FAILED"
                     }
                 )
 
@@ -502,8 +589,18 @@ async def main():
                     callback_url,
                     {
                         "success": False,
-                        "error": "CLOUDINARY_URL_MISSING",
-                        "source_message_id": source_message_id
+
+                        "chat_id": chat_id,
+                        "message_id": message_id,
+
+                        "source_chat_id": source_chat_id,
+                        "source_message_id": source_message_id,
+                        "source_username": source_username,
+
+                        "title": title,
+                        "duration": duration,
+
+                        "error": "CLOUDINARY_URL_MISSING"
                     }
                 )
 
@@ -514,6 +611,7 @@ async def main():
             # ========================================================
 
             print("")
+
             print(
                 "============================================================"
             )
@@ -547,12 +645,48 @@ async def main():
             )
 
             # ========================================================
-            # إرسال الرابط إلى n8n
+            # إرسال الرابط + جميع المعلومات إلى n8n
             # ========================================================
 
             callback_data = {
 
                 "success": True,
+
+                # ====================================================
+                # معلومات Telegram القادمة من n8n
+                # ====================================================
+
+                "chat_id": chat_id,
+
+                "message_id": message_id,
+
+                "source_chat_id": source_chat_id,
+
+                "source_message_id": source_message_id,
+
+                "source_username": source_username,
+
+                # ====================================================
+                # المعلومات الجديدة
+                # ====================================================
+
+                "title": title,
+
+                "duration": duration,
+
+                # ====================================================
+                # معلومات الملف
+                # ====================================================
+
+                "file_size": file_size,
+
+                "mime_type": mime_type,
+
+                "media_type": media_type,
+
+                # ====================================================
+                # Cloudinary
+                # ====================================================
 
                 "cloudinary_url": secure_url,
 
@@ -560,15 +694,7 @@ async def main():
 
                 "cloudinary_resource_type": resource_type,
 
-                "cloudinary_format": format_name,
-
-                "telegram_source_chat_id": source_chat_id,
-
-                "telegram_source_message_id": source_message_id,
-
-                "file_size": file_size,
-
-                "mime_type": mime_type
+                "cloudinary_format": format_name
             }
 
             send_callback(
@@ -590,6 +716,17 @@ async def main():
                 callback_url,
                 {
                     "success": False,
+
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+
+                    "source_chat_id": source_chat_id,
+                    "source_message_id": source_message_id,
+                    "source_username": source_username,
+
+                    "title": title,
+                    "duration": duration,
+
                     "error": "SESSION_PASSWORD_NEEDED"
                 }
             )
@@ -608,6 +745,17 @@ async def main():
                 callback_url,
                 {
                     "success": False,
+
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+
+                    "source_chat_id": source_chat_id,
+                    "source_message_id": source_message_id,
+                    "source_username": source_username,
+
+                    "title": title,
+                    "duration": duration,
+
                     "error": str(e)
                 }
             )
